@@ -1,54 +1,52 @@
-import pandas as pd
-import numpy as np
-from scipy import signal
-import matplotlib.pyplot as plt
+import os
+from obspy import read, read_inventory
 
-# Βήμα 1: Φόρτωση δεδομένων και προεπεξεργασία
-file_path = 'C:/Users/user1/Desktop/EVGI/evgi_earthquake_events.xlsx'  # Ενημερώστε τη διαδρομή
-data = pd.read_excel(file_path)
+# Διαδρομή στον φάκελο EVGI στην επιφάνεια εργασίας
+desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
+evgi_folder = os.path.join(desktop_path, "EVGI")
+waveforms_folder = os.path.join(evgi_folder, "waveforms")
+cleaned_folder = os.path.join(evgi_folder, "cleaned_waveforms")
 
-# Μετατροπή δεδομένων αν χρειαστεί
-if data['Magnitude'].dtype == 'object':
-    data['Magnitude'] = data['Magnitude'].str.replace(',', '.').astype(float)
+# Δημιουργία φακέλου για τα καθαρισμένα αρχεία
+if not os.path.exists(cleaned_folder):
+    os.makedirs(cleaned_folder)
 
-# Demean και Detrend
-data['magnitude_demeaned'] = data['Magnitude'] - data['Magnitude'].mean()
-data['magnitude_detrended'] = signal.detrend(data['magnitude_demeaned'])
+# Ανάγνωση του inventory (υποθέτοντας ότι υπάρχει στο φάκελο EVGI)
+inventory_file = os.path.join(evgi_folder, "EVGI_station.xml")
+inventory = read_inventory(inventory_file)
 
-# Βήμα 2: Αφαίρεση instrument-response (προσομοίωση)
-# Χρειάζονται οι πραγματικές παράμετροι απόκρισης οργάνου (sensitivity, poles, zeros κλπ).
-# Παράδειγμα χωρίς πραγματικά δεδομένα απόκρισης:
-instrument_sensitivity = 1.0  # Υποθετικό
-data['corrected_signal'] = data['magnitude_detrended'] / instrument_sensitivity
+# Λήψη όλων των αρχείων miniSEED από τον φάκελο waveforms
+mseed_files = [f for f in os.listdir(waveforms_folder) if f.endswith(".mseed")]
 
-# Βήμα 3: Υπολογισμός μετατόπισης (Displacement)
-# Από επιταχυνσιογράφημα υπολογίζουμε πρώτα την ταχύτητα και στη συνέχεια τη μετατόπιση
-dt = 1 / 100.0  # Παράδειγμα συχνότητας δειγματοληψίας (100 Hz)
-velocity = np.cumsum(data['corrected_signal']) * dt
-displacement = np.cumsum(velocity) * dt
-data['displacement'] = displacement
+# Καθαρισμός και εμφάνιση κάθε waveform
+for mseed_file in mseed_files:
+    try:
+        # Διαδρομή στο αρχείο
+        mseed_path = os.path.join(waveforms_folder, mseed_file)
 
-# Απεικόνιση αποτελεσμάτων
-plt.figure(figsize=(10, 6))
-plt.plot(data['Date and Time'], data['displacement'], label='Displacement (Μετατόπιση)')
+        # Ανάγνωση αρχείου miniSEED
+        st = read(mseed_path)
+        print(f"Διαβάστηκε το αρχείο: {mseed_file}")
 
-# Ρύθμιση για καλύτερη εμφάνιση του γραφήματος
-plt.xlabel('Ημερομηνία και Ώρα')
-plt.ylabel('Μετατόπιση')
-plt.title('Μετατόπιση από σεισμικά δεδομένα')
+        # Επισύναψη της απόκρισης του σταθμού
+        st.attach_response(inventory)
 
-# Εισαγωγή legend και πλέγμα
-plt.legend()
-plt.grid()
+        # Καθαρισμός των δεδομένων
+        st.detrend('linear')
+        st.detrend('demean')
+        st.taper(max_percentage=0.05, type='cosine')
+        st.filter("bandpass", freqmin=1, freqmax=50)
+        pre_filt = [0.001, 1, 40, 45]
+        st.remove_response(output="DISP", pre_filt=pre_filt)
 
-# Ρύθμιση για καλύτερη εμφάνιση των ετικετών στον άξονα X
-plt.xticks(rotation=45, ha='right')  # Περιστροφή ετικετών για καλύτερη αναγνωσιμότητα
-plt.tight_layout()  # Ρύθμιση του γραφήματος για καλύτερη εμφάνιση
+        # Εμφάνιση της καθαρισμένης κυματομορφής
+        print(f"Εμφάνιση καθαρισμένης κυματομορφής για το αρχείο: {mseed_file}")
+        st.plot()  # Δημιουργεί γράφημα της κυματομορφής
 
-# Εμφάνιση διαγράμματος
-plt.show()
+        # Αποθήκευση του καθαρισμένου waveform
+        cleaned_path = os.path.join(cleaned_folder, f"cleaned_{mseed_file}")
+        st.write(cleaned_path, format="MSEED")
+        print(f"Αποθηκεύτηκε το καθαρισμένο αρχείο: {cleaned_path}")
 
-# Αποθήκευση αποτελεσμάτων
-output_file = 'C:/Users/user1/Desktop/earthquake_displacement.xlsx'
-data.to_excel(output_file, index=False)
-print(f"Τα αποτελέσματα αποθηκεύτηκαν στο: {output_file}")
+    except Exception as e:
+        print(f"Σφάλμα κατά την επεξεργασία του αρχείου {mseed_file}: {str(e)}")
