@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from obspy import UTCDateTime
+from obspy import UTCDateTime, Stream
 from obspy.clients.fdsn import Client
 from math import radians, cos, sin, asin, sqrt
 
@@ -37,6 +37,11 @@ folder_path = os.path.join(desktop_path, folder_name)
 if not os.path.exists(folder_path):
     os.makedirs(folder_path)
 
+# Υποφάκελος για τα αρχεία miniSEED
+waveform_folder = os.path.join(folder_path, "waveforms")
+if not os.path.exists(waveform_folder):
+    os.makedirs(waveform_folder)
+
 # Επεξεργασία των πρώτων 20 σεισμικών γεγονότων και αποθήκευση των δεδομένων
 for i in range(min(20, len(cat2))):  # Περιορισμός στους πρώτους 20 σεισμούς
     try:
@@ -57,17 +62,31 @@ for i in range(min(20, len(cat2))):  # Περιορισμός στους πρώ�
             "Longitude": evtlon
         })
 
+        # Λήψη κυματομορφών
+        start_waveform = time - 10  # 10 δευτερόλεπτα πριν
+        end_waveform = time + 50   # 50 δευτερόλεπτα μετά
+
+        try:
+            st = client.get_waveforms(network="HT", station="EVGI", location="", channel="HHZ",
+                                      starttime=start_waveform, endtime=end_waveform)
+            waveform_filename = os.path.join(waveform_folder, f"event_{i+1}_waveform.mseed")
+            st.write(waveform_filename, format="MSEED")
+            print(f"Αποθηκεύτηκε το αρχείο miniSEED: {waveform_filename}")
+
+            # Εμφάνιση κυματομορφής
+            print(f"Προβολή κυματομορφής για το event {i+1}")
+            st.plot()  # Δημιουργεί γράφημα της κυματομορφής
+
+        except Exception as e:
+            print(f"Σφάλμα κατά τη λήψη κυματομορφών για το event {i+1}: {str(e)}")
+            pass
+
     except Exception as e:
         print(f"Error processing event at {str(time)}: {str(e)}")
         pass
 
 # Δημιουργία DataFrame από τη λίστα
 df = pd.DataFrame(data)
-
-# Έλεγχος αν ο φάκελος υπάρχει και είναι έτοιμος για αποθήκευση
-if not os.path.exists(folder_path):
-    print(f"Ο φάκελος {folder_name} δεν βρέθηκε στην επιφάνεια εργασίας. Δημιουργείται...")
-    os.makedirs(folder_path)
 
 # Ορισμός του πλήρους μονοπατιού για το αρχείο Excel
 excel_path = os.path.join(folder_path, "evgi_earthquake_events.xlsx")
