@@ -1,0 +1,80 @@
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+from obspy import read
+from obspy.signal.trigger import classic_sta_lta, trigger_onset
+
+# Συνάρτηση για Fourier Transform για φιλτράρισμα του σήματος
+def fourier_filter(data, sampling_rate, threshold_freq=0.5):
+    N = len(data)
+    freqs = np.fft.fftfreq(N, 1 / sampling_rate)
+    fft_values = np.fft.fft(data)
+    
+    # Κρατάμε μόνο τις συχνότητες κάτω από το όριο
+    fft_values[np.abs(freqs) > threshold_freq] = 0
+    
+    # Επιστρέφουμε το ανασυντεθειμένο φιλτραρισμένο σήμα
+    filtered_data = np.real(np.fft.ifft(fft_values))
+    return filtered_data
+
+# Συνάρτηση για την ανίχνευση P και S κύματος με STA/LTA
+def detect_p_s_wave(file_path, sta=1, lta=10, p_thresh=3.5, s_thresh=1.5, threshold_freq=0.5):
+    try:
+        # Διαβάζουμε τα σεισμικά δεδομένα από το αρχείο
+        st = read(file_path)
+        tr = st[0]
+        data = tr.data
+        sr = tr.stats.sampling_rate
+        times = tr.times()
+
+        # Εφαρμόζουμε Fourier Transform για να φιλτράρουμε το σήμα και να μειώσουμε τον θόρυβο
+        filtered_data = fourier_filter(data, sr, threshold_freq)
+        print(f"Εφαρμόστηκε Fourier filter για το αρχείο: {os.path.basename(file_path)}")
+
+        # Υπολογισμός του STA/LTA characteristic function στο φιλτραρισμένο σήμα
+        cft = classic_sta_lta(filtered_data, int(sta * sr), int(lta * sr))
+
+        # Ανίχνευση των σημείων ενεργοποίησης για P και S κύματα
+        triggers = trigger_onset(cft, p_thresh, s_thresh)
+
+        if len(triggers) == 0:
+            print(f"No triggers found for {os.path.basename(file_path)}")
+            return None, None
+
+        # Ανίχνευση του P-wave και του S-wave
+        p_index = triggers[0][0]
+        s_index = triggers[0][1]
+
+        print(f"{os.path.basename(file_path)}:")
+        print(f"  P-wave at {p_index / sr:.2f} sec")
+        print(f"  S-wave at {s_index / sr:.2f} sec")
+
+        # Σχεδιάζουμε το φιλτραρισμένο σήμα με τα σημεία P και S
+        plt.figure(figsize=(10, 6))
+        plt.plot(times, filtered_data, label="Filtered Waveform")
+        plt.axvline(p_index / sr, color='r', linestyle='--', label="P-wave")
+        plt.axvline(s_index / sr, color='g', linestyle='--', label="S-wave")
+        plt.title(f"Detection for {os.path.basename(file_path)}")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Amplitude")
+        plt.legend()
+        plt.grid()
+        plt.tight_layout()
+        plt.show()
+
+        return p_index, s_index
+
+    except Exception as e:
+        print(f"Σφάλμα στο αρχείο {file_path}: {e}")
+        return None, None
+
+# Συνάρτηση για να επεξεργαστούμε όλα τα αρχεία στον φάκελο
+def process_p_s_from_folder(folder_path):
+    for filename in os.listdir(folder_path):
+        if filename.endswith(".mseed"):
+            file_path = os.path.join(folder_path, filename)
+            detect_p_s_wave(file_path)
+
+# Παράδειγμα χρήσης
+folder_path = r"C:\Users\user1\Desktop\EVGI\cleaned_waveforms"
+process_p_s_from_folder(folder_path)
