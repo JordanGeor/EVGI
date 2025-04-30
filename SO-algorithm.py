@@ -63,23 +63,31 @@ def plot_waveform_with_fourier(time_series, sampling_rate, outbreak_index):
 
 # Αναθεωρημένος αλγόριθμος SO για τη σύγκριση
 def so_algorithm(time_series, sampling_rate, threshold):
-    L = len(time_series)
+    window_size = int(0.5 * sampling_rate)  # π.χ. 0.5 δευτερόλεπτα
+    step = int(0.1 * sampling_rate)         # βήμα 0.1 δευτερολέπτου
+    
+    L = len(time_series) 
     
     # Βήμα 1: Detection step
-    for ct in range(1, L):
-        r_ct = correlation_coefficient(time_series[:ct+1], time_series[:ct+1])
-        print(f"r({ct}) = {r_ct}")  # Εκτύπωση για τον έλεγχο της συσχέτισης
+    for ct in range(window_size, L - window_size, step):
+        # Παίρνουμε δύο συνεχόμενα παράθυρα: παλιό και νέο
+        old_window = time_series[ct - window_size:ct]
+        new_window = time_series[ct:ct + window_size]
+
+        r_ct = correlation_coefficient(old_window, new_window)
+        print(f"r({ct}) = {r_ct}")
 
         # Ελέγχουμε αν η συσχέτιση είναι NaN ή πολύ μικρή
         if np.isnan(r_ct) or r_ct <= 0:
-            print("No Outbreak (variance function - power law)")
             continue
         
-        if r_ct > threshold:
+        if r_ct < threshold:
             # Εντοπισμός του πρώτου κύματος (outbreak) και επιστροφή του δείκτη
-            print(f"OUTBREAK detected at {ct} (variance function - power law)")
-            plot_waveform_with_fourier(time_series, sampling_rate, ct)  # Σχεδιάζουμε το πρώτο κύμα και Fourier
-            return ct  # Επιστρέφουμε το δείκτη του πρώτου κύματος (outbreak)
+            print(f"OUTBREAK detected at {ct} (correlation drop)")
+            plot_waveform_with_fourier(time_series, sampling_rate, ct)
+            return ct
+        
+    print("No outbreak detected.")
     return None
 
 # Φόρτωση αρχείων από το φάκελο 'cleaned_waveforms' και επεξεργασία τους
