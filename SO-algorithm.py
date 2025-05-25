@@ -52,7 +52,7 @@ def plot_waveform_with_fourier(time_series, sampling_rate, outbreak_index):
     # Υπολογισμός και σχεδίαση του Fourier Transform
     freqs, fft_values = fourier_transform(time_series, sampling_rate)
     plt.subplot(2, 1, 2)
-    plt.plot(freqs, fft_values, label="FFT of the Signal", color='g')
+    plt.plot(freqs, fft_values, label="FFT of the Signal", color='g') #plt.loglog(freqs, fft_values, label="FFT of the Signal", color='g')
     plt.title("Fourier Transform (Frequency Spectrum)")
     plt.xlabel("Frequency [Hz]")
     plt.ylabel("Amplitude")
@@ -63,8 +63,8 @@ def plot_waveform_with_fourier(time_series, sampling_rate, outbreak_index):
 
 # Αναθεωρημένος αλγόριθμος SO για τη σύγκριση
 def so_algorithm(time_series, sampling_rate, threshold):
-    window_size = int(0.5 * sampling_rate)  # π.χ. 0.5 δευτερόλεπτα
-    step = int(0.1 * sampling_rate)         # βήμα 0.1 δευτερολέπτου
+    window_size = int(8.0 * sampling_rate)  # π.χ. 3 δευτερόλεπτα
+    step = int(0.1 * sampling_rate)         # βήμα 0.2 δευτερολέπτου
     
     L = len(time_series) 
     

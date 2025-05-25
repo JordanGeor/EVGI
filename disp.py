@@ -35,7 +35,7 @@ for mseed_file in mseed_files:
         st.detrend('linear')
         st.detrend('demean')
         st.taper(max_percentage=0.05, type='cosine')
-        st.filter("bandpass", freqmin=1, freqmax=50)
+        st.filter("bandpass", freqmin=1, freqmax=20)
         pre_filt = [0.001, 1, 40, 45]
         st.remove_response(output="DISP", pre_filt=pre_filt)
 
