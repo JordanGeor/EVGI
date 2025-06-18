@@ -1,16 +1,16 @@
 import os
 from obspy import read
-from obspy.signal.trigger import classic_sta_lta, trigger_onset
+from obspy.signal.trigger import recursive_sta_lta, trigger_onset
 import matplotlib.pyplot as plt
 
 # Φάκελος με σεισμικά δεδομένα
 folder_path = r"C:\Users\user1\Desktop\EVGI\cleaned_waveforms"
 
 # Παράμετροι STA/LTA
-sta = 0.5  # short-term window (σε δευτερόλεπτα)
-lta = 10.0  # long-term window
-trigger_on = 1.5
-trigger_off = 0.5
+sta = 0.1  # short-term window σε δευτερόλεπτα (πχ 100 ms)
+lta = 2.0  # long-term window σε δευτερόλεπτα (πχ 2 sec)
+trigger_on = 3.5
+trigger_off = 1.0
 
 for filename in os.listdir(folder_path):
     if filename.endswith(".mseed"):
@@ -21,15 +21,15 @@ for filename in os.listdir(folder_path):
         tr = st.select(component="Z")[0]
 
         # Προεπεξεργασία σήματος
-        tr.detrend("demean")
-        tr.filter("bandpass", freqmin=0.5, freqmax=15.0)
+        tr.detrend("linear")  # απομάκρυνση τάσης
+        tr.filter("bandpass", freqmin=1.0, freqmax=10.0)  # φίλτρο ζώνης
 
         df = tr.stats.sampling_rate  # συχνότητα δειγματοληψίας
         nsta = int(sta * df)
         nlta = int(lta * df)
 
-        # Υπολογισμός STA/LTA characteristic function
-        cft = classic_sta_lta(tr.data, nsta, nlta)
+        # Υπολογισμός recursive STA/LTA characteristic function
+        cft = recursive_sta_lta(tr.data, nsta, nlta)
 
         # Trigger detection
         onsets = trigger_onset(cft, trigger_on, trigger_off)
@@ -52,7 +52,7 @@ for filename in os.listdir(folder_path):
             s_time = None
             print("⚠️ Δεν εντοπίστηκε S-wave")
 
-        # Πλοκή waveform με P/S γραμμές
+        # Πλοκή waveform με γραμμές P και S
         fig, ax = plt.subplots()
         t = tr.times("matplotlib")
         ax.plot_date(t, tr.data, 'k-', label=tr.id)

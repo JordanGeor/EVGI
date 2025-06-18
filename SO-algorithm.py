@@ -2,7 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from obspy import read
-from scipy.signal import detrend, find_peaks
+from scipy.signal import detrend
 from scipy.fft import fft, fftfreq
 from scipy.optimize import curve_fit
 
@@ -45,14 +45,14 @@ def plot_waveform_with_fourier(time_series, sampling_rate, outbreak_index):
     plt.plot(time_series, label="Waveform")
     plt.axvline(x=outbreak_index, color='r', linestyle='--', label="First Outbreak")
     plt.title("Waveform with First Outbreak")
-    plt.xlabel("Time")
+    plt.xlabel("Time (samples)")
     plt.ylabel("Amplitude")
     plt.legend()
 
     # Υπολογισμός και σχεδίαση του Fourier Transform
     freqs, fft_values = fourier_transform(time_series, sampling_rate)
     plt.subplot(2, 1, 2)
-    plt.plot(freqs, fft_values, label="FFT of the Signal", color='g') #plt.loglog(freqs, fft_values, label="FFT of the Signal", color='g')
+    plt.plot(freqs, fft_values, label="FFT of the Signal", color='g')
     plt.title("Fourier Transform (Frequency Spectrum)")
     plt.xlabel("Frequency [Hz]")
     plt.ylabel("Amplitude")
@@ -63,30 +63,26 @@ def plot_waveform_with_fourier(time_series, sampling_rate, outbreak_index):
 
 # Αναθεωρημένος αλγόριθμος SO για τη σύγκριση
 def so_algorithm(time_series, sampling_rate, threshold):
-    window_size = int(8.0 * sampling_rate)  # π.χ. 3 δευτερόλεπτα
-    step = int(0.1 * sampling_rate)         # βήμα 0.2 δευτερολέπτου
-    
+    window_size = int(3.0 * sampling_rate)  # Μικρότερο παράθυρο (3 δευτερόλεπτα)
+    step = int(0.05 * sampling_rate)        # Μικρότερο βήμα (0.05 δευτερόλεπτα)
+
     L = len(time_series) 
-    
-    # Βήμα 1: Detection step
+
     for ct in range(window_size, L - window_size, step):
-        # Παίρνουμε δύο συνεχόμενα παράθυρα: παλιό και νέο
         old_window = time_series[ct - window_size:ct]
         new_window = time_series[ct:ct + window_size]
 
         r_ct = correlation_coefficient(old_window, new_window)
         print(f"r({ct}) = {r_ct}")
 
-        # Ελέγχουμε αν η συσχέτιση είναι NaN ή πολύ μικρή
         if np.isnan(r_ct) or r_ct <= 0:
             continue
-        
+
         if r_ct < threshold:
-            # Εντοπισμός του πρώτου κύματος (outbreak) και επιστροφή του δείκτη
-            print(f"OUTBREAK detected at {ct} (correlation drop)")
+            print(f"OUTBREAK detected at sample {ct} (correlation drop)")
             plot_waveform_with_fourier(time_series, sampling_rate, ct)
             return ct
-        
+
     print("No outbreak detected.")
     return None
 
@@ -97,23 +93,20 @@ def process_files_from_folder(folder_path, sampling_rate, threshold):
             file_path = os.path.join(folder_path, filename)
             print(f"Επεξεργασία του αρχείου: {file_path}")
             
-            # Διαβάζουμε το αρχείο .mseed
             try:
                 st = read(file_path)
                 trace = st[0]  # Πρώτο trace
 
-                # Λήψη των δεδομένων του σήματος
                 data = trace.data
                 
-                # Εκτέλεση του αλγορίθμου SO
                 so_algorithm(data, sampling_rate, threshold)
 
             except Exception as e:
-                print(f"Σφάλμα κατά τη φόρτωση ή την επεξεργασία του αρχείου {file_path}: {e}")
+                print(f"Σφάλμα κατά τη φόρτωση ή επεξεργασία του αρχείου {file_path}: {e}")
 
 # Παράδειγμα χρήσης
 folder_path = r"C:\Users\user1\Desktop\EVGI\cleaned_waveforms"
-sampling_rate = 100  # Συχνότητα δειγματοληψίας (π.χ., 100 Hz)
-threshold = 0.5  # Ορισμός του κατωφλιού για τον εντοπισμό των εκδηλώσεων
+sampling_rate = 100  # Συχνότητα δειγματοληψίας (Hz)
+threshold = 0.5      # Κατώφλι συσχέτισης για εντοπισμό
 
 process_files_from_folder(folder_path, sampling_rate, threshold)

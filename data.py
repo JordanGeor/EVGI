@@ -4,14 +4,18 @@ from obspy import UTCDateTime
 from obspy.clients.fdsn import Client
 from tkinter import Tk, messagebox, simpledialog, ttk
 import tkinter as tk
+from datetime import datetime, timezone
 
 # Ρυθμίσεις
 client = Client("NOA")
-starttime = UTCDateTime("2024-01-01")
-endtime = UTCDateTime("2024-02-01")
+endtime = UTCDateTime(datetime.now(timezone.utc))  
+starttime = endtime - 30 * 24 * 3600    
 evgi_lat = 38.62
 evgi_lon = 20.66
-maxradius_km = 2.0
+
+maxradius_km = 20.0     # Μεγαλύτερη ακτίνα, πχ 20-30 χλμ
+min_magnitude = 3.5     # Ελάχιστο μέγεθος σεισμού, πχ 3.5 ή μεγαλύτερο
+
 
 # Δημιουργία φακέλων στην επιφάνεια εργασίας (χωρίς μηνύματα)
 desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
